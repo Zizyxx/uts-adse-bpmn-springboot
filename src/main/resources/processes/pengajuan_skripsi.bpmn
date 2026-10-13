@@ -1,0 +1,162 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_Skripsi"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_PengajuanSkripsi" name="Prosedur Pengajuan Proposal Skripsi" isExecutable="true">
+    <bpmn:startEvent id="Start_Pengajuan" name="Mahasiswa Mengajukan Judul">
+      <bpmn:outgoing>Flow_to_CheckSks</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="Task_CheckSks" name="Validasi Kelayakan SKS (Min 100)" camunda:delegateExpression="${checkSksDelegate}">
+      <bpmn:incoming>Flow_to_CheckSks</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_GatewaySks</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Sks" name="SKS Memenuhi?">
+      <bpmn:incoming>Flow_to_GatewaySks</bpmn:incoming>
+      <bpmn:outgoing>Flow_Sks_Lolos</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Sks_Gagal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_TolakSks" name="Notifikasi Penolakan SKS" camunda:delegateExpression="${notifikasiPenolakanDelegate}">
+      <bpmn:incoming>Flow_Sks_Gagal</bpmn:incoming>
+      <bpmn:outgoing>Flow_End_GagalSks</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="Task_ReviewKaprodi" name="Review Proposal oleh Kaprodi" camunda:candidateGroups="kaprodi">
+      <bpmn:incoming>Flow_Sks_Lolos</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_GatewayKaprodi</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Kaprodi" name="Status Persetujuan Kaprodi?">
+      <bpmn:incoming>Flow_to_GatewayKaprodi</bpmn:incoming>
+      <bpmn:outgoing>Flow_Diterima</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Ditolak</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_TerimaProposal" name="Penerbitan Surat Rekomendasi Pembimbing" camunda:delegateExpression="${penerbitanRekomendasiDelegate}">
+      <bpmn:incoming>Flow_Diterima</bpmn:incoming>
+      <bpmn:outgoing>Flow_End_Sukses</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_TolakJudul" name="Notifikasi Penolakan Judul" camunda:delegateExpression="${notifikasiPenolakanDelegate}">
+      <bpmn:incoming>Flow_Ditolak</bpmn:incoming>
+      <bpmn:outgoing>Flow_End_Ditolak</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End_Sukses" name="Proposal Diterima">
+      <bpmn:incoming>Flow_End_Sukses</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_GagalSks" name="Selesai (Gagal SKS)">
+      <bpmn:incoming>Flow_End_GagalSks</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="End_Ditolak" name="Selesai (Judul Ditolak)">
+      <bpmn:incoming>Flow_End_Ditolak</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_to_CheckSks" sourceRef="Start_Pengajuan" targetRef="Task_CheckSks" />
+    <bpmn:sequenceFlow id="Flow_to_GatewaySks" sourceRef="Task_CheckSks" targetRef="Gateway_Sks" />
+    <bpmn:sequenceFlow id="Flow_Sks_Lolos" name="Ya (SKS &gt;= 100)" sourceRef="Gateway_Sks" targetRef="Task_ReviewKaprodi">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isEligible == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Sks_Gagal" name="Tidak (SKS &lt; 100)" sourceRef="Gateway_Sks" targetRef="Task_TolakSks">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isEligible == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_End_GagalSks" sourceRef="Task_TolakSks" targetRef="End_GagalSks" />
+    <bpmn:sequenceFlow id="Flow_to_GatewayKaprodi" sourceRef="Task_ReviewKaprodi" targetRef="Gateway_Kaprodi" />
+    <bpmn:sequenceFlow id="Flow_Diterima" name="Diterima" sourceRef="Gateway_Kaprodi" targetRef="Task_TerimaProposal">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${statusPersetujuan == 'DITERIMA'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Ditolak" name="Ditolak" sourceRef="Gateway_Kaprodi" targetRef="Task_TolakJudul">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${statusPersetujuan == 'DITOLAK'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_End_Sukses" sourceRef="Task_TerimaProposal" targetRef="End_Sukses" />
+    <bpmn:sequenceFlow id="Flow_End_Ditolak" sourceRef="Task_TolakJudul" targetRef="End_Ditolak" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Skripsi">
+    <bpmndi:BPMNPlane id="BPMNPlane_Skripsi" bpmnElement="Process_PengajuanSkripsi">
+      <bpmndi:BPMNShape id="Start_Pengajuan_di" bpmnElement="Start_Pengajuan">
+        <dc:Bounds x="152" y="172" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CheckSks_di" bpmnElement="Task_CheckSks">
+        <dc:Bounds x="240" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Sks_di" bpmnElement="Gateway_Sks" isMarkerVisible="true">
+        <dc:Bounds x="395" y="165" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TolakSks_di" bpmnElement="Task_TolakSks">
+        <dc:Bounds x="370" y="290" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_GagalSks_di" bpmnElement="End_GagalSks">
+        <dc:Bounds x="402" y="412" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ReviewKaprodi_di" bpmnElement="Task_ReviewKaprodi">
+        <dc:Bounds x="500" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Kaprodi_di" bpmnElement="Gateway_Kaprodi" isMarkerVisible="true">
+        <dc:Bounds x="655" y="165" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TerimaProposal_di" bpmnElement="Task_TerimaProposal">
+        <dc:Bounds x="760" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TolakJudul_di" bpmnElement="Task_TolakJudul">
+        <dc:Bounds x="760" y="270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Sukses_di" bpmnElement="End_Sukses">
+        <dc:Bounds x="922" y="172" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Ditolak_di" bpmnElement="End_Ditolak">
+        <dc:Bounds x="922" y="292" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_to_CheckSks_di" bpmnElement="Flow_to_CheckSks">
+        <di:waypoint x="188" y="190" />
+        <di:waypoint x="240" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_GatewaySks_di" bpmnElement="Flow_to_GatewaySks">
+        <di:waypoint x="340" y="190" />
+        <di:waypoint x="395" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sks_Lolos_di" bpmnElement="Flow_Sks_Lolos">
+        <di:waypoint x="445" y="190" />
+        <di:waypoint x="500" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Sks_Gagal_di" bpmnElement="Flow_Sks_Gagal">
+        <di:waypoint x="420" y="215" />
+        <di:waypoint x="420" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_End_GagalSks_di" bpmnElement="Flow_End_GagalSks">
+        <di:waypoint x="420" y="370" />
+        <di:waypoint x="420" y="412" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_GatewayKaprodi_di" bpmnElement="Flow_to_GatewayKaprodi">
+        <di:waypoint x="600" y="190" />
+        <di:waypoint x="655" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Diterima_di" bpmnElement="Flow_Diterima">
+        <di:waypoint x="705" y="190" />
+        <di:waypoint x="760" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ditolak_di" bpmnElement="Flow_Ditolak">
+        <di:waypoint x="680" y="215" />
+        <di:waypoint x="680" y="310" />
+        <di:waypoint x="760" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_End_Sukses_di" bpmnElement="Flow_End_Sukses">
+        <di:waypoint x="860" y="190" />
+        <di:waypoint x="922" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_End_Ditolak_di" bpmnElement="Flow_End_Ditolak">
+        <di:waypoint x="860" y="310" />
+        <di:waypoint x="922" y="310" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
