@@ -1,4 +1,4 @@
-﻿package id.ac.uinjkt.adse.delegate;
+package id.ac.uinjkt.adse.delegate;
 
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
